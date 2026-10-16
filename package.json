@@ -1,0 +1,71 @@
+{
+  "name": "linux.js",
+  "version": "0.4.0",
+  "description": "Run the real Linux kernel anywhere WebAssembly runs — browsers, serverless, edge, and Node.js — via LKL compiled to WASM.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/linux-js/linux.js.git"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/linux-js/linux.js#readme",
+  "bugs": {
+    "url": "https://github.com/linux-js/linux.js/issues"
+  },
+  "author": "linux.js contributors",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "lkl.wasm",
+    "lkl.js",
+    "lkl.worker.js",
+    "lkl.wasm64.wasm",
+    "lkl.wasm64.js",
+    "README.md",
+    "LICENSE",
+    "LICENSE.GPL"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "build:lkl": "node scripts/build-lkl.mjs",
+    "build:lkl:wasm64": "node scripts/build-lkl.mjs --wasm64",
+    "build:lkl:both": "node scripts/build-lkl.mjs && node scripts/build-lkl.mjs --wasm64 --skip-kernel",
+    "build:all": "npm run build:lkl && npm run build",
+    "dev": "tsc --watch",
+    "test": "tsc -p tsconfig.test.json && node --test dist-test/**/*.test.js",
+    "example:basic": "node examples/basic.mjs",
+    "example:server": "node examples/server.mjs",
+    "fetch:lkl": "node scripts/build-lkl.mjs --download",
+    "smoke": "node scripts/smoke.mjs",
+    "bench": "node scripts/bench.mjs",
+    "bench:json": "node scripts/bench.mjs --json",
+    "clean": "rm -rf dist dist-test build lkl.wasm lkl.js lkl.worker.js"
+  },
+  "keywords": [
+    "linux",
+    "kernel",
+    "wasm",
+    "webassembly",
+    "lkl",
+    "linux-kernel",
+    "serverless",
+    "edge",
+    "busybox",
+    "emscripten"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.9.3"
+  }
+}

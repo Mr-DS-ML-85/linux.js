@@ -1,0 +1,11 @@
+node_modules/
+dist/
+dist-test/
+build/
+images/
+bios/
+*.log
+.DS_Store
+lkl.wasm
+lkl.js
+lkl.worker.js

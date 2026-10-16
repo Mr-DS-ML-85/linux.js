@@ -1,0 +1,87 @@
+name: Build & Release
+
+# Pushes a release artifact every time a `vX.Y.Z` tag is pushed.
+# The workflow:
+#   1. Builds `lkl.{wasm,js}` via Docker using `scripts/build-lkl.mjs`.
+#   2. Builds the TS dist tree (`npm run build`), runs the unit tests and the
+#      real-kernel smoke test (`npm run smoke`) as a release gate.
+#   3. Uploads the WASM artifacts (+ LICENSE.GPL) to the GitHub release.
+#   4. Optionally publishes to npm if `NPM_TOKEN` is configured.
+#
+# Required secrets:
+#   - `GITHUB_TOKEN` (provided automatically)
+#   - `NPM_TOKEN` (optional, for `npm publish`)
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      publish_npm:
+        description: 'Publish to npm after build'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install deps
+        run: npm ci
+
+      # One variant only: LKL needs host threads, so there is no
+      # single-threaded build (runtimes without SharedArrayBuffer are
+      # unsupported — see README "Multi-runtime support").
+      - name: Build LKL kernel → WASM
+        run: node scripts/build-lkl.mjs
+
+      - name: Build TypeScript dist
+        run: npm run build
+
+      - name: Run unit tests
+        run: npm test
+
+      # Release gate: boot the freshly built kernel and exercise every API.
+      - name: Smoke-test the real kernel
+        run: npm run smoke
+
+      - name: Upload artifacts to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            lkl.wasm
+            lkl.js
+            LICENSE.GPL
+          generate_release_notes: true
+
+      - name: Compute checksums
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          sha256sum lkl.wasm lkl.js > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Upload checksums
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: SHA256SUMS.txt
+
+      - name: Publish to npm
+        if: |
+          startsWith(github.ref, 'refs/tags/v') ||
+          (github.event_name == 'workflow_dispatch' && inputs.publish_npm)
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

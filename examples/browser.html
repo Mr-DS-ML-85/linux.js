@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>linux.js — browser filesystem explorer</title>
+  <style>
+    body { font: 14px/1.5 system-ui, sans-serif; max-width: 760px;
+           margin: 40px auto; padding: 0 20px; background: #0a0a0a; color: #e8e8e8; }
+    h1 { color: #00d4aa; }
+    pre { background: #141414; border: 1px solid #2a2a2a;
+          border-radius: 6px; padding: 10px 12px; overflow-x: auto; }
+    button { background: #00d4aa; color: #000; border: 0;
+             padding: 8px 14px; border-radius: 4px; font-weight: 600;
+             cursor: pointer; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    input { width: 100%; box-sizing: border-box; padding: 8px;
+            background: #141414; color: #e8e8e8; border: 1px solid #2a2a2a;
+            border-radius: 4px; font-family: monospace; }
+    .row { display: flex; gap: 8px; margin: 10px 0; }
+  </style>
+</head>
+<body>
+  <h1>🐧 linux.js in your browser</h1>
+  <p>
+    The real Linux kernel is running inside this tab — no server is doing
+    the work, your CPU is. Every button below is a kernel syscall.
+  </p>
+  <p><small>Serve this page with <code>Cross-Origin-Opener-Policy: same-origin</code>
+    and <code>Cross-Origin-Embedder-Policy: require-corp</code>: the kernel's
+    threads need <code>SharedArrayBuffer</code>.</small></p>
+  <pre id="boot">Booting kernel…</pre>
+  <div class="row">
+    <input id="path" value="/proc/meminfo" />
+    <button id="read" disabled>Read</button>
+    <button id="list" disabled>List</button>
+  </div>
+  <div class="row">
+    <input id="content" placeholder="text to write to the path above" />
+    <button id="write" disabled>Write</button>
+  </div>
+  <pre id="out"></pre>
+
+  <!-- Loaded from your CDN. Pin to a specific version. -->
+  <script type="module">
+    import Linux from '/dist/index.js';
+
+    const $ = (id) => document.getElementById(id);
+    const buttons = ['read', 'list', 'write'].map($);
+
+    const t0 = performance.now();
+    const linux = await Linux.create({ memory: 128, wasmBinary: '/lkl.js' });
+    $('boot').textContent = `✅ ${linux.getKernelVersion()}\n   booted in ${Math.round(performance.now() - t0)} ms`;
+    buttons.forEach((b) => (b.disabled = false));
+
+    async function act(fn) {
+      buttons.forEach((b) => (b.disabled = true));
+      try { $('out').textContent = await fn($('path').value); }
+      catch (err) { $('out').textContent = `⚠ ${err.message}`; }
+      finally { buttons.forEach((b) => (b.disabled = false)); }
+    }
+
+    $('read').onclick = () => act((p) => linux.readFile(p));
+    $('list').onclick = () => act(async (p) =>
+      (await linux.readdir(p)).map((e) => `${e.isDirectory ? 'd' : '-'} ${String(e.size).padStart(8)}  ${e.name}`).join('\n'));
+    $('write').onclick = () => act(async (p) => {
+      const r = await linux.writeFile(p, $('content').value);
+      if (r.exitCode !== 0) throw new Error(r.stderr);
+      return `wrote ${$('content').value.length} bytes to ${p}`;
+    });
+  </script>
+</body>
+</html>
