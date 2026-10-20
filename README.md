@@ -150,12 +150,15 @@ Config:
 ### Build from source
 
 ```bash
-npm run build:lkl      # node scripts/build-lkl.mjs — kernel → lkl.wasm + lkl.js
-npm run build          # TypeScript → dist/
-npm run smoke          # boots the kernel and checks every API against it
+npm run build:lkl        # node scripts/build-lkl.mjs — kernel → lkl.wasm + lkl.js
+npm run build:userland   # WASI tools → userland/bin/ (see userland/README.md)
+npm run build            # TypeScript → dist/
+npm run smoke            # boots the kernel and checks every API against it
 ```
 
-Needs Docker, git and ~4 GB of disk. The script clones LKL (Linux 6.12),
+Needs Docker, git and ~4 GB of disk. The toolchain image is pinned to
+`emscripten/emsdk:6.0.10` so the kernel objects, the adapter and the link
+always come from the same compiler. The script clones LKL (Linux 6.12),
 applies the wasm32 patch series in [`patches/`](patches/README.md), builds the
 kernel with emcc, and links it with the C host adapter
 ([`src/host/lkl_adapter.c`](src/host/lkl_adapter.c)) via Emscripten with
@@ -186,11 +189,9 @@ kernel syscalls with no size limits. Kernel panics surface as
 `KernelPanicError` instead of hanging; WARN/BUG splats carry wasm stack traces
 in `kernelLog()`. Shutdown halts the kernel and joins its threads.
 
-**Not yet:** there is no guest userland, so `exec()` and the agent's shell
-surfaces reject with `ExecNotSupportedError`. LKL's binfmt only intercepts
-`/init` to finish boot, and the kernel cannot load WebAssembly programs; a
-userland needs a wasm-native process model (or a separate wasm32 ELF
-toolchain plus loader). The root filesystem is an in-memory ramfs — nothing
+**In progress — WASI userland:** `exec()` and the agent's shell surfaces still
+reject with `ExecNotSupportedError`, but the pieces underneath are built and
+tested (see below). The root filesystem is an in-memory ramfs — nothing
 persists across instances, and there is no block device yet (ext4 is compiled
 in, but needs a disk to mount).
 
@@ -198,6 +199,30 @@ in, but needs a disk to mount).
 boot blocks the calling JS thread for the boot duration. In browsers, run it in
 a Worker if that matters, and serve the page with COOP/COEP headers
 (`SharedArrayBuffer` is required).
+
+### WASI userland (in progress)
+
+The kernel cannot load WebAssembly programs itself (LKL's binfmt only
+intercepts `/init`), so programs run as **WASI preview1 modules on the host,
+with every system call served by the guest kernel**:
+
+- [`src/wasi/process.ts`](src/wasi/process.ts) implements WASI preview1
+  (`path_open`, `fd_read`, `fd_readdir`, `path_rename`, `poll_oneoff`, …) on top
+  of real kernel syscalls through a raw gate exported by the adapter
+  (`linuxjs_syscall`, wrapped by [`src/wasi/kernel.ts`](src/wasi/kernel.ts)).
+  Each process has its own fd table, captured or redirected stdio, and a
+  deadline for timeouts.
+- [`userland/`](userland/README.md) builds the tools from pinned sources:
+  uutils coreutils (~90 tools), grep, sed, find, diff/cmp, GoAWK, plus the
+  official CPython 3.15 and QuickJS WASI builds. A small linked-in shim gives
+  WASI programs a working directory (`$PWD`), which preview1 lacks.
+
+Verified against the real kernel: `ls -la`, `cp`, `mv`, `mkdir -p`, `ln -s`,
+`rm -r`, `sort`, `wc`, `sha256sum`, `grep -rn`, `find -name`, `diff -u`, `cmp`,
+`sed`, `awk` — each runs in a few milliseconds. **Not done yet:** the public
+`linux.run([...])` API (package installation into `/usr/bin`, PATH lookup,
+module caching), Python/QuickJS run checks, and a shell for `exec("…")`
+strings.
 
 ---
 
@@ -220,9 +245,10 @@ the kernel-side virtio-net is not wired up.
 
 | Part | License |
 |---|---|
-| `src/*.ts`, examples, scripts | **MIT** |
+| `src/*.ts`, examples, scripts, `userland/shim` | **MIT** |
 | `src/host/*.{c,h}`, `patches/` | **GPL v2** |
 | Compiled `lkl.wasm` | **GPL v2** |
+| `userland/bin/*` (built tools) | their upstream licenses — MIT (uutils, GoAWK, QuickJS), Apache-2.0 (diffutils), PSF-2.0 (CPython); listed per file in `userland/bin/checksums.json` |
 
 `LICENSE` carries MIT; `LICENSE.GPL` will ship the kernel's GPL v2 text alongside the artifact.
 
@@ -237,9 +263,12 @@ Working today:
 - Kernel panics → `KernelPanicError`; WARN/BUG with wasm backtraces
 - Agent sandbox: workdir-confined file staging, LLM file tools, allow/deny lists
 - Strict link: unresolved kernel symbols fail the build
+- WASI preview1 runtime on kernel syscalls; reproducible userland build
+  (coreutils, grep, sed, find, diff, awk, Python, QuickJS)
 
 Next:
-- [ ] Guest userland (wasm-native process model) → `exec()`, agent shell tools
+- [ ] `linux.run([...])`: argv-based execution of userland programs
+- [ ] Shell (on the mvdan/sh parser) → `exec("…")`, agent shell tools
 - [ ] Block device + persistent ext4 images
 - [ ] First prebuilt `lkl.wasm` published via the release workflow
 - [ ] Boot off the calling thread (run the kernel entirely in Workers)

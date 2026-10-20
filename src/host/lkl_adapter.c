@@ -1292,6 +1292,21 @@ void lkl_shutdown(void)
     kernel_running = 0;
 }
 
+/*
+ * Raw syscall gate for the host-side WASI runtime (src/wasi/). Pointer
+ * arguments refer to THIS module's linear memory; the caller stages data
+ * in malloc()ed buffers. Uses the asm-generic numbering (see LKL_NR_*).
+ * Returns the kernel's result: >= 0, or a negative Linux errno.
+ */
+#define LKL_ENOSYS 38
+long linuxjs_syscall(long no, long a0, long a1, long a2, long a3, long a4, long a5)
+{
+    if (!kernel_running || __atomic_load_n(&kernel_panicked, __ATOMIC_SEQ_CST))
+        return -LKL_ENOSYS;
+    long p[6] = { a0, a1, a2, a3, a4, a5 };
+    return lkl_syscall(no, p);
+}
+
 const char *lkl_get_last_error(void)
 {
     return get_error();

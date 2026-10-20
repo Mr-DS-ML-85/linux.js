@@ -325,8 +325,14 @@ CONFIG_KERNEL_NONE=y
 const INIT_PLACEHOLDER = '#!/usr/bin/false\n# linux.js placeholder — kernel boots in library mode.\n';
 
 /* ── Dockerfile for the emcc + kernel build environment ─────────────── */
+/*
+ * Pinned: the kernel objects, the adapter and the link must all come from
+ * the same emcc/LLVM. `:latest` silently changed the toolchain between
+ * builds (and between kernel and link steps).
+ */
+const EMSDK_VERSION = '6.0.10';
 const DOCKERFILE = `
-FROM emscripten/emsdk:latest
+FROM emscripten/emsdk:${EMSDK_VERSION}
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \\
     bc bison flex cpio file gcc libelf-dev kmod python3 rsync \\
     autoconf automake libtool pkg-config make \\
@@ -796,6 +802,7 @@ async function buildFromSource() {
     '_lkl_mkdir', '_lkl_rm', '_lkl_mount', '_lkl_shutdown',
     '_lkl_get_last_error', '_linuxjs_kernel_panicked',
     '_linuxjs_host_threads', '_linuxjs_peak_host_threads', '_linuxjs_set_debug',
+    '_linuxjs_syscall',
     '_malloc', '_free',
   ];
   // wasmMemory: the adapter reads/writes linear memory through it (HEAP* views

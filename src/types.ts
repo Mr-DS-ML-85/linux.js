@@ -128,6 +128,7 @@ export interface LklWasmModule {
   _linuxjs_host_threads(): number;
   _linuxjs_peak_host_threads(): number;
   _linuxjs_set_debug(on: number): void;
+  _linuxjs_syscall(no: number, a0: number, a1: number, a2: number, a3: number, a4: number, a5: number): number;
 
   /** Stat a path via `lkl_sys_statx`. */
   _lkl_stat(path: number, modeOut: number, sizeOut: number): number;

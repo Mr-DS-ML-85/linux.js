@@ -1,0 +1,49 @@
+diff --git a/src/cmp.rs b/src/cmp.rs
+index d53df4f..dc8bf79 100644
+--- a/src/cmp.rs
++++ b/src/cmp.rs
+@@ -11,10 +11,10 @@ use std::iter::Peekable;
+ use std::process::ExitCode;
+ use std::{cmp, fs, io};
+ 
+-#[cfg(not(target_os = "windows"))]
++#[cfg(unix)]
+ use std::os::fd::{AsRawFd, FromRawFd};
+ 
+-#[cfg(not(target_os = "windows"))]
++#[cfg(unix)]
+ use std::os::unix::fs::MetadataExt;
+ 
+ #[cfg(target_os = "windows")]
+@@ -38,7 +38,7 @@ fn usage_string(executable: &str) -> String {
+     format!("Usage: {executable} <from> <to>")
+ }
+ 
+-#[cfg(not(target_os = "windows"))]
++#[cfg(unix)]
+ fn is_stdout_dev_null() -> bool {
+     let Ok(dev_null) = fs::metadata("/dev/null") else {
+         return false;
+@@ -234,7 +234,7 @@ pub fn parse_params<I: Iterator<Item = OsString>>(mut opts: Peekable<I>) -> Resu
+ 
+     // Do as GNU cmp, and completely disable printing if we are
+     // outputing to /dev/null.
+-    #[cfg(not(target_os = "windows"))]
++    #[cfg(unix)]
+     if is_stdout_dev_null() {
+         params.quiet = true;
+         params.verbose = false;
+@@ -329,9 +329,12 @@ pub fn cmp(params: &Params) -> Result<Cmp, String> {
+     let mut offset_width = params.max_bytes.unwrap_or(usize::MAX);
+ 
+     if let (Ok(a_meta), Ok(b_meta)) = (fs::metadata(&params.from), fs::metadata(&params.to)) {
+-        #[cfg(not(target_os = "windows"))]
++        #[cfg(unix)]
+         let (a_size, b_size) = (a_meta.size(), b_meta.size());
+ 
++        #[cfg(target_os = "wasi")]
++        let (a_size, b_size) = (a_meta.len(), b_meta.len());
++
+         #[cfg(target_os = "windows")]
+         let (a_size, b_size) = (a_meta.file_size(), b_meta.file_size());
+ 

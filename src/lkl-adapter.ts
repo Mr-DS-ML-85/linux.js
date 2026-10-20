@@ -12,6 +12,7 @@
 import type { LklWasmModule, LklWasmModuleFactory } from './types.js';
 import { capabilities, defaultLoaderHint } from './runtime.js';
 import { KernelPanicError } from './errors.js';
+import { KernelSyscalls } from './wasi/kernel.js';
 
 /** Buffer for short UTF-8 string arguments (paths, commands < 4 KB). */
 const FIXED_BUF_SIZE = 4096;
@@ -45,6 +46,7 @@ export class LklAdapter {
   private statSizePtr = 0;
 
   private allocatedPtrs: number[] = [];
+  private syscalls: KernelSyscalls | null = null;
 
   /**
    * Resolve and load the Emscripten loader, then run it to instantiate the
@@ -120,6 +122,12 @@ export class LklAdapter {
       total += n;
     }
     return total;
+  }
+
+  /** Typed raw-syscall access for the WASI userland (created on first use). */
+  kernel(): KernelSyscalls {
+    if (!this.syscalls) this.syscalls = new KernelSyscalls(this.assertReady());
+    return this.syscalls;
   }
 
   /** Host threads backing the kernel: currently live and the peak so far. */

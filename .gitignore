@@ -9,3 +9,5 @@ bios/
 lkl.wasm
 lkl.js
 lkl.worker.js
+# built by `npm run build:userland` (large wasm binaries)
+userland/bin/

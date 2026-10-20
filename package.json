@@ -31,7 +31,8 @@
     "lkl.wasm64.js",
     "README.md",
     "LICENSE",
-    "LICENSE.GPL"
+    "LICENSE.GPL",
+    "userland/bin"
   ],
   "scripts": {
     "build": "tsc",
@@ -47,7 +48,8 @@
     "smoke": "node scripts/smoke.mjs",
     "bench": "node scripts/bench.mjs",
     "bench:json": "node scripts/bench.mjs --json",
-    "clean": "rm -rf dist dist-test build lkl.wasm lkl.js lkl.worker.js"
+    "clean": "rm -rf dist dist-test build lkl.wasm lkl.js lkl.worker.js",
+    "build:userland": "node scripts/build-userland.mjs"
   },
   "keywords": [
     "linux",
